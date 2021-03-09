@@ -1,5 +1,5 @@
 {
-  "name": "@skokenes/manymerge",
+  "name": "qlik-manymerge",
   "version": "2.6.1",
   "license": "MIT",
   "main": "dist/index.js",
