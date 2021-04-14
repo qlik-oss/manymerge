@@ -1,82 +1,82 @@
-import { applyChanges, Doc } from 'automerge';
-import { getClock, later, recentChanges, union } from 'automerge-clocks';
-import { Map, fromJS } from 'immutable';
+import { Frontend, Doc } from 'automerge';
+// import { getClock, later, recentChanges, union } from 'automerge-clocks';
+// import { Map, fromJS } from 'immutable';
 import { Message } from './types';
+
+const FrontendT = Frontend as any;
 
 /**
  * An Automerge Network protocol getting consensus
  * between two documents in different places.
  */
 export class Peer {
-  _theirClock: Map<string, number>;
   _sendMsg: (msg: Message) => void;
+  // lastSync should be the known heads from the last sync
+  lastSync: any = undefined;
+  lastSyncMsg: Message | undefined = undefined;
+  // We need to store changes until we have enough to apply (no missing dependencies)
+  queuedChanges: any[] = [];
+  // We need to keep track of changes we've sent so that we don't send duplicates
+  // Open question: How do we clear this over time, as it could get stale or we could have changes that we thought we sent but didn't make it? a TTL?
+  sentChanges: any[] = [];
 
   constructor(sendMsg: (msg: Message) => void) {
-    this._theirClock = Map();
     this._sendMsg = sendMsg;
   }
 
   public applyMessage<T>(msg: Message, doc: Doc<T>): Doc<T> | undefined {
-    let ourDoc = doc;
+    let nextDoc;
 
-    // Convert msg clock to Immutable Map incase its been serialized
-    const msgClock = fromJS(msg.clock);
+    // Apply the message received
+    const [newDoc, nextState] = FrontendT.receiveSyncMessage(
+      doc,
+      msg,
+      this.lastSync
+    );
 
-    // 1. If they've sent us changes, we'll try to apply them.
-    if (msg.changes) {
-      ourDoc = applyChanges(doc, msg.changes);
+    // Save the nextState for peer
+    this.lastSync = nextState;
+
+    // Determine if we have a message to send
+    const [, replyMsg] = FrontendT.generateSyncMessage(newDoc, this.lastSync);
+
+    if (replyMsg) {
+      this.sendMsg(replyMsg);
     }
 
-    // 2. If we have any changes to let them know about,
-    // we should send it to them.
-    const ourChanges = recentChanges(doc, msgClock);
-    if (ourChanges.length > 0) {
-      this.sendMsg({
-        clock: getClock(ourDoc),
-        changes: ourChanges,
-      });
-    }
+    nextDoc = newDoc;
 
-    // 3. If our clock is still earlier than their clock,
-    // then we should let them know, which will prompt
-    // them to send us changes via 2. listed above.
-    const ourClock = getClock(ourDoc);
-    if (later(msgClock, ourClock)) {
-      this.sendMsg({
-        clock: ourClock,
-      });
-    }
-
-    if (msg.changes) {
-      return ourDoc;
-    }
-
-    return;
+    return nextDoc;
   }
 
   public notify<T>(doc: Doc<T>) {
-    // 1. If we think that we have changes to share, we'll send them.
-    const ourChanges = recentChanges(doc, this._theirClock);
-    if (ourChanges.length > 0) {
-      this.sendMsg({
-        clock: getClock(doc),
-        changes: ourChanges,
-      });
-      return;
+    const [, msg] = FrontendT.generateSyncMessage(doc, this.lastSync);
+    if (msg) {
+      this.sendMsg(msg);
     }
-
-    // 2. Otherwise, we just let them know where we're at.
-    // If our copy of "theirClock" is wrong, they'll
-    // update us via 3. in 'applyMessage'.
-    this.sendMsg({
-      clock: getClock(doc),
-    });
   }
 
+  // private, previously was updating clock
   private sendMsg(msg: Message) {
-    // Whenever we send a message, we should optimistically
-    // update theirClock with what we're about to send them.
-    this._theirClock = union(this._theirClock, msg.clock);
+    // Suppress duplicate sync/change messages
+    // if (msg.type === 'sync') {
+    //   // If we already sent this message, don't send again
+    //   const encodedPayload = Backend.encodeSyncMessage(msg.payload);
+    //   if (this.lastSyncMsg && equalBytes(this.lastSyncMsg, encodedPayload))
+    //     return;
+    //   // Store last sync message sent
+    //   this.lastSyncMsg = encodedPayload;
+    // } else if (msg.type === 'change') {
+    //   // Filter out any changes that you think you already sent
+    //   const changesToSend = msg.payload.filter(
+    //     change => !this.sentChanges.some(prior => equalBytes(change, prior))
+    //   );
+    //   // only send the unsent changes
+    //   msg.payload = changesToSend;
+    //   // update your state about what youve sent
+    //   this.sentChanges = [...this.sentChanges, ...changesToSend];
+    //   this.lastSyncMsg = undefined;
+    // }
     this._sendMsg(msg);
   }
 }
