@@ -1,54 +1,36 @@
 import Automerge from 'automerge';
-import { Subject, interval } from 'rxjs';
-import { delay } from 'rxjs/operators';
 import { Peer } from './peer';
 
-const docAInput = new Subject();
-const docBInput = new Subject();
+// hack to keep process running until we manually exit
+setInterval(() => {}, 1 << 30);
 
-interval(1000).subscribe(() => {
-  // console.log("isStopped?", docAInput.isStopped);
-  // console.log("closed", docAInput.closed);
-});
+const sendToA = (msg: any) => {
+  setTimeout(() => {
+    const maybeDoc = peerA.applyMessage(msg as any, docA);
+    if (maybeDoc) {
+      console.log('NEW DOC A', maybeDoc);
+      docA = maybeDoc;
+    }
+  }, 0);
+};
 
-const sendToA = (v: any) => docAInput.next(v);
-const sendToB = (v: any) => docBInput.next(v);
+const sendToB = (msg: any) => {
+  setTimeout(() => {
+    const maybeDoc = peerB.applyMessage(msg, docB);
+    if (maybeDoc) {
+      docB = maybeDoc;
+      console.log('NEW DOC B', docB);
+    }
+  }, 0);
+};
 
-const docAReceived = docAInput.pipe(delay(0));
-const docBReceived = docBInput.pipe(delay(0));
-
-const peerA = new Peer(sendToB);
-const peerB = new Peer(sendToA);
+const peerA = new Peer(sendToB, 'A');
+const peerB = new Peer(sendToA, 'B');
 
 let docA = Automerge.from({ foo: 42 });
 let docB = Automerge.from({ bar: 'hi' });
 
-docAReceived.subscribe(
-  msg => {
-    const maybeDoc = peerA.applyMessage(msg as any, docA);
-    if (maybeDoc) {
-      docA = maybeDoc;
-      console.log('NEW DOC A', docA);
-    }
-  },
-  error => {
-    console.log('ERROR', error);
-  },
-  () => {
-    console.log('COMPLETE');
-  }
-);
-
-docBReceived.subscribe((msg: any) => {
-  const maybeDoc = peerB.applyMessage(msg, docB);
-  if (maybeDoc) {
-    docB = maybeDoc;
-    console.log('NEW DOC B', docB);
-  }
-});
-
 // Goal: try to create 2 documents and sync them using new protocol
-
 peerA.notify(docA);
 peerB.notify(docB);
 
