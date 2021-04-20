@@ -45,7 +45,7 @@ const peerBCtx: any = {
 const peerA = new Peer(
   msgCallbackGenerator(peerBCtx, doc => {
     peerBCtx.doc = doc;
-    if (doc.x === 100) {
+    if (doc.x === n) {
       performance.mark(END_MARKER);
       performance.measure(
         `1 peer inserting ${n} times`,
@@ -68,7 +68,9 @@ peerA.notify(peerACtx.doc);
 peerB.notify(peerBCtx.doc);
 
 // Peer A adds a change later
-for (var i = 0; i <= 100; i++) {
+
+performance.mark(START_MARKER);
+for (var i = 0; i <= n; i++) {
   peerACtx.doc = change(peerACtx.doc, (doc: any) => {
     doc.x = i;
   });
