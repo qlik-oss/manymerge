@@ -221,7 +221,7 @@ async function runBenchmarks() {
 
   // await benchmarkNInserts(1);
 
-  // await benchmarkNInserts(10);
+  await benchmarkNInserts(10);
 
   // await benchmarkNInserts(100);
 
@@ -237,7 +237,7 @@ async function runBenchmarks() {
   // await benchmarkNPeersMInserts(100, 1);
   // why is this one crapping out at a lot of peers for a single hub?
   // It seems to perform ok, but it takes forever for it to get changes back. Like we get double changes (I think because of clocks?). So 300 peers yields 600 change callbacks
-  await benchmarkNPeersMInserts(300, 1);
+  // await benchmarkNPeersMInserts(300, 1);
 
   // await benchmarkNHubsMInserts(1, 1);
   // await benchmarkNHubsMInserts(10, 1);

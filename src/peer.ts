@@ -4,6 +4,7 @@ import {
   receiveSyncMessage,
   BinarySyncMessage,
   SyncState,
+  initSyncState,
 } from 'automerge';
 
 /**
@@ -12,7 +13,7 @@ import {
  */
 export class Peer {
   _sendMsg: (msg: BinarySyncMessage) => void;
-  lastSync: SyncState | undefined = undefined;
+  lastSync: SyncState = initSyncState();
 
   constructor(sendMsg: (msg: BinarySyncMessage) => void) {
     this._sendMsg = sendMsg;
@@ -25,24 +26,20 @@ export class Peer {
     let nextDoc;
 
     // Apply the message received
-    const [nextState, newDoc] = receiveSyncMessage(
-      this.lastSync as SyncState,
-      doc,
-      msg
-    );
+    const [newDoc, nextState] = receiveSyncMessage(doc, this.lastSync, msg);
 
     // Save the nextState for peer
     this.lastSync = nextState;
 
     // Determine if we have a message to send
     const [theirNextSyncState, replyMsg] = generateSyncMessage(
-      this.lastSync,
-      newDoc
+      newDoc,
+      this.lastSync
     );
 
     if (replyMsg) {
       this.sendMsg(replyMsg);
-      // Optimisticly update their next sync state
+      // Optimistically update their next sync state
       this.lastSync = theirNextSyncState;
     }
 
@@ -55,10 +52,7 @@ export class Peer {
   }
 
   public notify<T>(doc: Doc<T>) {
-    const [theirNextSyncState, msg] = generateSyncMessage(
-      this.lastSync as SyncState,
-      doc
-    );
+    const [theirNextSyncState, msg] = generateSyncMessage(doc, this.lastSync);
 
     // Optimistically update their next sync state
     this.lastSync = theirNextSyncState;
