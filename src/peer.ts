@@ -19,36 +19,23 @@ export class Peer {
     this._sendMsg = sendMsg;
   }
 
-  public applyMessage<T>(
-    msg: BinarySyncMessage,
-    doc: Doc<T>
-  ): Doc<T> | undefined {
-    let nextDoc;
-
+  public applyMessage<T>(msg: BinarySyncMessage, doc: Doc<T>): Doc<T> {
     // Apply the message received
     const [newDoc, nextState] = receiveSyncMessage(doc, this.lastSync, msg);
-
-    // Save the nextState for peer
-    this.lastSync = nextState;
-
     // Determine if we have a message to send
     const [theirNextSyncState, replyMsg] = generateSyncMessage(
       newDoc,
-      this.lastSync
+      nextState
     );
+
+    // Save the nextState for peer
+    this.lastSync = theirNextSyncState;
 
     if (replyMsg) {
       this.sendMsg(replyMsg);
-      // Optimistically update their next sync state
-      this.lastSync = theirNextSyncState;
     }
 
-    // If the doc changes, return it
-    if (newDoc !== doc) {
-      nextDoc = newDoc;
-    }
-
-    return nextDoc;
+    return newDoc;
   }
 
   public notify<T>(doc: Doc<T>) {
