@@ -2,7 +2,7 @@ import { change, init, Backend, BinarySyncMessage, from } from 'automerge';
 import waitForExpect from 'wait-for-expect';
 import { Peer } from './peer';
 
-test('peers send and receive changes', () => {
+test('peers send and receive changes', async () => {
   const clientSendMsg = jest.fn();
   const client = new Peer(clientSendMsg);
 
@@ -14,20 +14,25 @@ test('peers send and receive changes', () => {
   );
 
   // We just sent this message
-  const [clientMsg] = clientSendMsg.mock.calls[0];
-  const decodedMsg = Backend.decodeSyncMessage(clientMsg);
-  expect(decodedMsg.heads.length).toBe(1);
+  let clientMsg;
+  await waitForExpect(() => {
+    [clientMsg] = clientSendMsg.mock.calls[0];
+    const decodedMsg = Backend.decodeSyncMessage(clientMsg);
+    expect(decodedMsg.heads.length).toBe(1);
+  });
 
   // We'll pretend to be a server
   // that received this message
   const serverSendMsg = jest.fn();
   const server = new Peer(serverSendMsg);
-  server.applyMessage(clientMsg, init());
+  server.applyMessage(clientMsg as any, init());
 
   // Server should send a message back
-  const [serverMsg] = clientSendMsg.mock.calls[0];
-  const decodedServerMsg = Backend.decodeSyncMessage(serverMsg);
-  expect(decodedServerMsg.heads.length).toBe(1);
+  await waitForExpect(() => {
+    const [serverMsg] = clientSendMsg.mock.calls[0];
+    const decodedServerMsg = Backend.decodeSyncMessage(serverMsg);
+    expect(decodedServerMsg.heads.length).toBe(1);
+  });
 });
 
 test('peers send and receive messages until they are in sync', async () => {
@@ -60,7 +65,6 @@ test('peers send and receive messages until they are in sync', async () => {
     peerACtx.doc = change(peerACtx.doc, (doc: any) => {
       doc.baz = true;
     });
-
     peerA.notify(peerACtx.doc);
   }, 250);
 
@@ -86,7 +90,7 @@ const msgCallbackGenerator = (
 ) => (msg: BinarySyncMessage) => {
   setTimeout(() => {
     const maybeDoc = ctx.peer.applyMessage(msg, ctx.doc);
-    if (maybeDoc) {
+    if (maybeDoc !== ctx.doc) {
       onNewDoc(maybeDoc);
     }
   }, 0);

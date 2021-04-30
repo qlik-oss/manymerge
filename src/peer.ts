@@ -6,6 +6,7 @@ import {
   SyncState,
   initSyncState,
 } from 'automerge';
+import { debounce } from './debounce';
 
 /**
  * An Automerge Network protocol getting consensus
@@ -14,31 +15,22 @@ import {
 export class Peer {
   _sendMsg: (msg: BinarySyncMessage) => void;
   lastSync: SyncState = initSyncState();
+  notify: (doc: Doc<any>) => void;
 
   constructor(sendMsg: (msg: BinarySyncMessage) => void) {
     this._sendMsg = sendMsg;
+    this.notify = debounce(this._notify.bind(this), 0);
   }
 
   public applyMessage<T>(msg: BinarySyncMessage, doc: Doc<T>): Doc<T> {
     // Apply the message received
     const [newDoc, nextState] = receiveSyncMessage(doc, this.lastSync, msg);
-    // Determine if we have a message to send
-    const [theirNextSyncState, replyMsg] = generateSyncMessage(
-      newDoc,
-      nextState
-    );
-
-    // Save the nextState for peer
-    this.lastSync = theirNextSyncState;
-
-    if (replyMsg) {
-      this.sendMsg(replyMsg);
-    }
-
+    this.lastSync = nextState;
+    this.notify(newDoc);
     return newDoc;
   }
 
-  public notify<T>(doc: Doc<T>) {
+  private _notify<T>(doc: Doc<T>) {
     const [theirNextSyncState, msg] = generateSyncMessage(doc, this.lastSync);
 
     // Optimistically update their next sync state

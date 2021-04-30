@@ -5,11 +5,8 @@ import {
   Doc,
   SyncState,
   initSyncState,
-  // Backend,
-  // Frontend,
-  // BinaryChange,
-  // SyncMessage,
 } from 'automerge';
+import { debounce } from './debounce';
 
 /**
  * An Automerge Network protocol getting consensus
@@ -20,6 +17,7 @@ export class Hub {
   _sendTo: (peerId: string, msg: BinarySyncMessage) => void;
   // map of last syncs from known peers
   _lastSyncs: Map<string, SyncState> = new Map();
+  notify: (doc: Doc<any>) => void;
 
   constructor(
     // Send message to just one peerId
@@ -29,6 +27,8 @@ export class Hub {
   ) {
     this._sendTo = sendMsgTo;
     this._broadcast = broadcastMsg;
+
+    this.notify = debounce(this._notify.bind(this), 0);
   }
 
   public applyMessage<T>(
@@ -41,28 +41,22 @@ export class Hub {
 
     // Apply the message received
     const [newDoc, nextState] = receiveSyncMessage(doc, lastSync, msg);
-
-    // Determine if we have a message to send
-    const [theirState, replyMsg] = generateSyncMessage(newDoc, nextState);
-    this._lastSyncs.set(peerId, theirState);
-
-    if (replyMsg) {
-      this.sendMsgTo(peerId, replyMsg);
-    }
-
-    // if the doc changed, notify other peers
-    if (newDoc !== doc) {
-      this.notify(newDoc, [peerId]);
-    }
+    this._lastSyncs.set(peerId, nextState);
+    // how to notify others ONLY on change? while still debouncing...
+    // basically, need to notify the peer that messaged always.
+    // but technically only need to notify everyone else if changes were received.
+    // maybe this is a microoptimization though
+    this.notify(newDoc);
+    // if (newDoc !== doc) {
+    //   console.log('new doc, notify others...');
+    //   this.notify(newDoc);
+    // }
 
     return newDoc;
   }
 
-  public notify<T>(doc: Doc<T>, exclude: string[] = []) {
+  private _notify<T>(doc: Doc<T>) {
     this._lastSyncs.forEach((lastSync, peerId) => {
-      // Don't send messages for excluded peers
-      if (exclude.includes(peerId)) return;
-
       const [theirNextState, replyMsg] = generateSyncMessage(doc, lastSync);
       this._lastSyncs.set(peerId, theirNextState);
       if (replyMsg) {
