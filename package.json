@@ -41,9 +41,5 @@
     "tslib": "^1.11.1",
     "typescript": "^3.8.3",
     "wait-for-expect": "^3.0.2"
-  },
-  "dependencies": {
-    "automerge-clocks": "1.2.1",
-    "immutable": "^3.8.2"
   }
 }
