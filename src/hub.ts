@@ -47,10 +47,6 @@ export class Hub {
     // but technically only need to notify everyone else if changes were received.
     // maybe this is a microoptimization though
     this.notify(newDoc);
-    // if (newDoc !== doc) {
-    //   console.log('new doc, notify others...');
-    //   this.notify(newDoc);
-    // }
 
     return newDoc;
   }
